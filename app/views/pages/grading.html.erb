@@ -1,0 +1,343 @@
+<%
+  # Helper for titles and icons
+  agent_details = {
+    history_of_present_illness: { title: "現病史 (HPI)", icon: "🩺" },
+    past_history: { title: "過去病史與家族史", icon: "📜" },
+    empathy_and_communication: { title: "同理心與溝通技巧", icon: "💬" },
+    clinical_reasoning: { title: "臨床推理", icon: "🧠" },
+    overall_assessment: { title: "總體評估", icon: "🏆" }
+  }
+%>
+
+<div class="grading-container">
+  <div class="grading-header">
+    <h1>問診表現回顧</h1>
+    <p class="doctor-info">醫師: <%= @username %> | 病患: <%= @patient_id.gsub('_', ' ').titleize %></p>
+  </div>
+
+  <div class="grading-content">
+    <div class="tabs">
+      <button class="tab-button active" data-tab="feedback">綜合回饋</button>
+      <button class="tab-button" data-tab="diagnosis">你的診斷</button>
+      <button class="tab-button" data-tab="transcript">完整對話紀錄</button>
+    </div>
+
+    <% if @grading_results.present? %>
+      <% overall_results = @grading_results[:overall_assessment] || { score: 0, justification: "評估失敗。", positive_feedback: "-", improvement_suggestion: "-" } %>
+
+      <div id="feedback" class="tab-content active">
+        <!-- Overall Score Section -->
+        <div class="overall-score-section">
+          <div class="overall-progress-card">
+            <div class="progress-circle" style="--p:<%= overall_results&.[](:score) || 0 %>; --c:<%= grade_color(overall_results&.[](:score) || 0) %>;">
+              <%= overall_results&.[](:score) || 0 %>
+            </div>
+            <h2>總體評分</h2>
+          </div>
+          <div class="overall-feedback">
+            <h3><%= agent_details[:overall_assessment][:icon] %> 總體評估</h3>
+            <p class="justification"><%= overall_results&.[](:justification) %></p>
+            <div class="feedback-summary">
+              <div class="feedback-item positive">
+                <h4>👍 優點</h4>
+                <p><%= overall_results&.[](:positive_feedback) %></p>
+              </div>
+              <div class="feedback-item improvement">
+                <h4>💡 待改進之處</h4>
+                <p><%= overall_results&.[](:improvement_suggestion) %></p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detailed Breakdown -->
+        <h3 class="section-title">詳細分析</h3>
+        <div class="detailed-grid">
+          <% @grading_results.each do |key, result| %>
+            <% next if key == :overall_assessment %>
+            <% details = agent_details[key] %>
+            <% next unless details && result %>
+            <div class="grade-card">
+              <div class="card-header">
+                <h4><%= details[:icon] %> <%= details[:title] %></h4>
+                <div class="card-score" style="--c:<%= grade_color(result&.[](:score) || 0) %>"><%= result&.[](:score) || 0 %>/100</div>
+              </div>
+              <div class="card-body">
+                <p class="justification"><%= result&.[](:justification) %></p>
+                <div class="feedback-points">
+                  <div class="point positive">
+                    <strong>優點:</strong> <%= result&.[](:positive_feedback) %>
+                  </div>
+                  <div class="point improvement">
+                    <strong>待改進:</strong> <%= result&.[](:improvement_suggestion) %>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <div id="diagnosis" class="tab-content">
+        <div class="diagnosis-review">
+          <h3>您提交的臨床總結</h3>
+          
+          <div class="summary-section">
+            <h4>診斷 (Diagnosis)</h4>
+            <div class="diagnosis-box">
+              <p><%= simple_format(@diagnosis) %></p>
+            </div>
+          </div>
+
+          <div class="summary-section">
+            <h4>鑑別診斷 (Differential Diagnosis)</h4>
+            <div class="diagnosis-box">
+              <p><%= simple_format(@differential_diagnosis) %></p>
+            </div>
+          </div>
+
+          <div class="summary-section">
+            <h4>處置方式 (Treatment Plan)</h4>
+            <div class="diagnosis-box">
+              <p><%= simple_format(@treatment_plan) %></p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    <% else %>
+      <div class="tab-content active">
+        <p>產生評分報告時發生錯誤，請再試一次。</p>
+      </div>
+    <% end %>
+
+    <div id="transcript" class="tab-content">
+      <div class="transcript-review">
+        <h3>完整對話紀錄</h3>
+        <div class="messages-log">
+          <% @messages.each do |msg| %>
+            <div class="transcript-message <%= msg[:role] %>">
+              <strong><%= msg[:role] == 'user' ? @username : '病患' %>:</strong>
+              <p><%= simple_format(msg[:content]) %></p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grading-actions">
+    <a href="<%= entry_page_path %>" class="btn btn-primary">開始新問診</a>
+  </div>
+</div>
+
+<style>
+  @property --p{
+    syntax: '<integer>';
+    inherits: false;
+    initial-value: 0;
+  }
+
+  .grading-container {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background: #f9fafb;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  .grading-header {
+    background: white;
+    color: #111827;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .grading-header h1 { margin: 0; font-size: 1.5rem; font-weight: 600; }
+  .doctor-info { margin: 0.25rem 0 0; font-size: 0.875rem; color: #6b7280; }
+
+  .grading-content {
+    flex: 1;
+    padding: 1.5rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid #d1d5db;
+  }
+
+  .tab-button {
+    background: none;
+    border: none;
+    padding: 0.75rem 0.25rem;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 500;
+    color: #6b7280;
+    transition: all 0.2s;
+  }
+
+  .tab-button.active { color: #3b82f6; border-bottom-color: #3b82f6; }
+  .tab-button:hover { color: #3b82f6; }
+
+  .tab-content { display: none; animation: fadeIn 0.5s ease-in-out; }
+  .tab-content.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* Overall Score Section */
+  .overall-score-section {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 2rem;
+    background: white;
+    padding: 2rem;
+    border-radius: 0.75rem;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+    margin-bottom: 2rem;
+    align-items: center;
+  }
+
+  .overall-progress-card { text-align: center; }
+  .progress-circle {
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: conic-gradient(var(--c) calc(var(--p) * 1%), #e5e7eb 0);
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: var(--c);
+    margin: 0 auto 1rem;
+    transition: --p 1s ease-in-out;
+  }
+  .overall-progress-card h2 { font-size: 1.25rem; color: #374151; margin: 0; }
+
+  .overall-feedback h3 { font-size: 1.25rem; margin: 0 0 1rem; color: #111827; }
+  .overall-feedback .justification { font-size: 1rem; color: #4b5563; margin: 0 0 1.5rem; }
+  
+  .feedback-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+  .feedback-item h4 { font-size: 1rem; margin: 0 0 0.5rem; }
+  .feedback-item p { font-size: 0.875rem; color: #6b7280; margin: 0; line-height: 1.5; }
+  .feedback-item.positive h4 { color: #16a34a; }
+  .feedback-item.improvement h4 { color: #f97316; }
+
+  /* Detailed Breakdown */
+  .section-title { font-size: 1.5rem; margin: 2.5rem 0 1.5rem; color: #111827; }
+  .detailed-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 1.5rem; }
+
+  .grade-card {
+    background: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.05);
+    overflow: hidden;
+  }
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .card-header h4 { font-size: 1rem; font-weight: 600; margin: 0; }
+  .card-score { font-size: 1rem; font-weight: bold; color: var(--c); }
+  
+  .card-body { padding: 1.5rem; }
+  .card-body .justification { font-size: 0.875rem; color: #6b7280; margin: 0 0 1rem; border-left: 3px solid #e5e7eb; padding-left: 1rem; }
+  
+  .feedback-points .point { margin-bottom: 1rem; }
+  .feedback-points .point strong { font-size: 0.875rem; display: block; margin-bottom: 0.25rem; }
+  .feedback-points .point.positive strong { color: #16a34a; }
+  .feedback-points .point.improvement strong { color: #f97316; }
+  .feedback-points .point p, .feedback-points .point { font-size: 0.875rem; color: #4b5563; margin: 0; }
+
+  /* Transcript & Diagnosis */
+  .transcript-review, .diagnosis-review { background: white; padding: 2rem; border-radius: 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+  .transcript-review h3, .diagnosis-review h3 { margin: 0 0 1.5rem; font-size: 1.25rem; }
+  
+  .messages-log { display: flex; flex-direction: column; gap: 1rem; }
+  .transcript-message { padding: 0.75rem 1rem; border-radius: 0.5rem; }
+  .transcript-message.user { background: #eff6ff; border-left: 3px solid #3b82f6; }
+  .transcript-message.patient { background: #fef2f2; border-left: 3px solid #ef4444; }
+  .transcript-message strong { font-weight: 600; color: #111827; }
+  .transcript-message p { margin: 0.25rem 0 0; color: #374151; line-height: 1.6; }
+
+  .diagnosis-box { background: #f3f4f6; padding: 1.5rem; border-radius: 0.5rem; }
+  .diagnosis-box p { margin: 0; font-size: 1rem; color: #1f2937; line-height: 1.6; }
+
+  .grading-actions {
+    padding: 2rem;
+    display: flex;
+    justify-content: center;
+    background: white;
+    border-top: 1px solid #e5e7eb;
+    margin-top: 2rem;
+  }
+  .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 0.5rem; cursor: pointer; font-size: 1rem; font-weight: 500; transition: all 0.2s; text-decoration: none; display: inline-block; }
+  .btn-primary { background: #3b82f6; color: white; }
+  .btn-primary:hover { background: #2563eb; }
+
+  .summary-section {
+    margin-bottom: 2rem;
+  }
+  .summary-section h4 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0.75rem;
+  }
+</style>
+
+<script>
+  function setupGradingTabs() {
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    if (tabButtons.length === 0) return;
+
+    tabButtons.forEach(button => {
+      // Remove any existing listeners to prevent duplicates
+      const newButton = button.cloneNode(true);
+      button.parentNode.replaceChild(newButton, button);
+
+      newButton.addEventListener('click', () => {
+        const tabName = newButton.getAttribute('data-tab');
+        
+        document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        
+        newButton.classList.add('active');
+        const targetContent = document.getElementById(tabName);
+        if (targetContent) {
+          targetContent.classList.add('active');
+        }
+      });
+    });
+
+    // Ensure the first tab is active if none are
+    const activeTab = document.querySelector('.tab-button.active');
+    if (!activeTab && tabButtons.length > 0) {
+      tabButtons[0].click();
+    }
+  }
+
+  // Run on both turbo:load and DOMContentLoaded for robustness
+  document.addEventListener('turbo:load', setupGradingTabs);
+  document.addEventListener('DOMContentLoaded', setupGradingTabs);
+
+  function grade_color(score) {
+    if (!score) return '#6b7280';
+    if (score >= 85) return '#16a34a'; // Green
+    if (score >= 70) return '#2563eb'; // Blue
+    if (score >= 50) return '#f97316'; // Orange
+    return '#ef4444'; // Red
+  }
+</script>

@@ -1,0 +1,678 @@
+<div class="chat-container">
+  <div class="chat-header">
+    <div>
+      <h1>與 <%= @patient_id.gsub('_', ' ').titleize %> 的問診</h1>
+      <p class="doctor-info">醫師: <%= @username %></p>
+    </div>
+    <div class="header-actions">
+      <div id="timer" class="timer">00:00</div>
+      <button id="back-btn" class="btn btn-secondary">結束問診</button>
+    </div>
+  </div>
+
+  <div class="chat-messages" id="chat-messages">
+    <% @messages.each do |msg| %>
+      <div class="message <%= msg[:role] %>">
+        <% if msg[:role] == 'patient' %>
+          <div class="avatar">病</div>
+        <% end %>
+        <div class="message-content">
+          <%= msg[:content] %>
+        </div>
+        <% if msg[:role] == 'user' %>
+          <div class="avatar"><%= @username[0].upcase %></div>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+
+  <div id="loading-indicator" class="loading-indicator" style="display: none;">
+    <div class="message patient">
+      <div class="avatar">病</div>
+      <div class="message-content">
+        <div class="typing-indicator">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chat-input-area">
+    <div id="chat-form" class="chat-form">
+      <input 
+        type="text" 
+        id="message-input" 
+        name="message" 
+        placeholder="請輸入您的問題，或使用麥克風..." 
+        class="chat-input"
+        autocomplete="off"
+      />
+      <button type="button" id="voice-input-btn" class="btn btn-voice" title="使用語音輸入">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+      </button>
+      <button type="button" id="send-btn" class="btn btn-send" title="傳送訊息">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
+      </button>
+      <button id="diagnose-btn" type="button" class="btn btn-diagnosis" title="提交診斷">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg>
+        <span>提交診斷</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="diagnosis-modal" class="modal hidden">
+  <div class="modal-content">
+    <h2>輸入您的臨床總結</h2>
+    <%= form_with url: submit_diagnosis_path, method: :post, id: 'diagnosis-form' do |f| %>
+      <div class="form-group">
+        <%= f.label :diagnosis, "診斷 (Diagnosis)" %>
+        <%= f.text_area :diagnosis, 
+              id: 'diagnosis-text', 
+              placeholder: '請在此輸入您的主要診斷...', 
+              rows: 3,
+              class: 'form-control',
+              required: true %>
+      </div>
+      <div class="form-group">
+        <%= f.label :differential_diagnosis, "鑑別診斷 (Differential Diagnosis)" %>
+        <%= f.text_area :differential_diagnosis, 
+              id: 'differential-diagnosis-text', 
+              placeholder: '請列出其他可能的診斷...', 
+              rows: 4,
+              class: 'form-control' %>
+      </div>
+      <div class="form-group">
+        <%= f.label :treatment_plan, "處置方式 (Treatment Plan)" %>
+        <%= f.text_area :treatment_plan, 
+              id: 'treatment-plan-text', 
+              placeholder: '請描述您的初步治療或處置計畫...', 
+              rows: 4,
+              class: 'form-control' %>
+      </div>
+      <div class="modal-actions">
+        <%= f.submit "提交總結", class: "btn btn-primary" %>
+        <button type="button" class="btn btn-secondary" id="close-modal">取消</button>
+      </div>
+    <% end %>
+  </div>
+</div>
+
+<style>
+  .modal-content .form-group {
+    margin-bottom: 1rem;
+  }
+
+  .modal-content .form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #374151;
+  }
+</style>
+
+
+<style>
+  .chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: #f9fafb;
+  }
+
+  .chat-header {
+    background: white;
+    color: #111827;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+
+  .chat-header h1 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+
+  .doctor-info {
+    margin: 0;
+    font-size: 0.875rem;
+    color: #6b7280;
+  }
+  
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .timer {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #374151;
+    background-color: #f3f4f6;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    min-width: 80px;
+    text-align: center;
+  }
+
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .message {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.75rem;
+    max-width: 80%;
+    animation: slideIn 0.3s ease-out;
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .message.user {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+  }
+
+  .message.patient {
+    align-self: flex-start;
+  }
+
+  .avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+  
+  .message.patient .avatar {
+    background-color: #ef4444;
+  }
+
+  .message.user .avatar {
+    background-color: #3b82f6;
+  }
+
+  .message-content {
+    padding: 0.75rem 1rem;
+    border-radius: 0.75rem;
+    word-wrap: break-word;
+    line-height: 1.5;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  }
+
+  .message.user .message-content {
+    background: #3b82f6;
+    color: white;
+    border-bottom-right-radius: 0.25rem;
+  }
+
+  .message.patient .message-content {
+    background: white;
+    color: #1f2937;
+    border: 1px solid #e5e7eb;
+    border-bottom-left-radius: 0.25rem;
+  }
+
+  .chat-input-area {
+    border-top: 1px solid #e5e7eb;
+    background: white;
+    padding: 1rem 1.5rem;
+  }
+
+  .chat-form {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+  }
+
+  .chat-input {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    font-size: 1rem;
+    font-family: inherit;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .chat-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+  
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-voice {
+    background: #f3f4f6;
+    color: #4b5563;
+    padding: 0.75rem;
+  }
+  .btn-voice:hover:not(:disabled) {
+    background: #e5e7eb;
+  }
+  .btn-voice.listening {
+    background: #fecaca;
+    color: #dc2626;
+  }
+
+  .btn-send {
+    background: #2563eb;
+    color: white;
+    padding: 0.75rem; /* Make it square */
+  }
+
+  .btn-send:hover {
+    background: #1d4ed8;
+  }
+  
+  .btn-send svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .btn-diagnosis {
+    background: #10b981;
+    color: white;
+  }
+
+  .btn-diagnosis:hover {
+    background: #059669;
+  }
+  
+  .btn-diagnosis svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .btn-secondary {
+    background: #6b7280;
+    color: white;
+  }
+
+  .btn-secondary:hover {
+    background: #4b5563;
+  }
+
+  .modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .modal:not(.hidden) {
+    display: flex;
+  }
+
+  .modal.hidden {
+    display: none;
+  }
+
+  .modal-content {
+    background: white;
+    padding: 2rem;
+    border-radius: 0.75rem;
+    max-width: 600px;
+    width: 90%;
+    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+  }
+
+  .modal-content h2 {
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    margin-top: 1.5rem;
+  }
+
+  .btn-primary {
+    background: #3b82f6;
+    color: white;
+  }
+
+  .btn-primary:hover {
+    background: #2563eb;
+  }
+
+  .form-control {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    font-size: 1rem;
+    font-family: inherit;
+    resize: vertical;
+  }
+
+  .form-control:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+</style>
+
+<style>
+  .loading-indicator {
+    padding: 0 1.5rem;
+  }
+
+  .typing-indicator {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+  }
+  .typing-indicator span {
+    height: 8px;
+    width: 8px;
+    background-color: #9E9E9E;
+    border-radius: 50%;
+    display: inline-block;
+    margin: 0 2px;
+    animation: typing 1.4s infinite both;
+  }
+  .typing-indicator span:nth-child(1) { animation-delay: 0s; }
+  .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes typing {
+    0% { transform: scale(0.9); opacity: 0.5; }
+    20% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(0.9); opacity: 0.5; }
+  }
+</style>
+
+<script>
+  function setupChatPage() {
+    const messageInput = document.getElementById('message-input');
+    const sendBtn = document.getElementById('send-btn');
+    const chatMessages = document.getElementById('chat-messages');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const diagnoseBtn = document.getElementById('diagnose-btn');
+    const diagnosisModal = document.getElementById('diagnosis-modal');
+    const diagnosisForm = document.getElementById('diagnosis-form');
+    const closeModalBtn = document.getElementById('close-modal');
+    const backBtn = document.getElementById('back-btn');
+    const voiceInputBtn = document.getElementById('voice-input-btn');
+    const timerElement = document.getElementById('timer');
+
+    // If elements don't exist, abort setup for this page
+    if (!messageInput || !sendBtn || !chatMessages) {
+      return;
+    }
+
+    // Scroll to bottom on load
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    // Timer
+    let startTime;
+    let timerInterval;
+
+    function startTimer() {
+      if (timerInterval) clearInterval(timerInterval); // Clear existing timer
+      startTime = Date.now();
+      timerInterval = setInterval(updateTimer, 1000);
+    }
+
+    function updateTimer() {
+      const elapsedTime = Date.now() - startTime;
+      const totalSeconds = Math.floor(elapsedTime / 1000);
+      const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+      const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+      timerElement.textContent = `${minutes}:${seconds}`;
+    }
+
+    // --- Speech Recognition ---
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition;
+
+    if (SpeechRecognition) {
+      recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.lang = 'cmn-Hant-TW'; // Traditional Chinese (Taiwan)
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 1;
+
+      voiceInputBtn.addEventListener('click', () => {
+        if (voiceInputBtn.classList.contains('listening')) {
+          recognition.stop();
+          return;
+        }
+        try {
+          recognition.start();
+        } catch(e) {
+          console.error("Error starting recognition: ", e);
+        }
+      });
+
+      recognition.onstart = () => {
+        voiceInputBtn.classList.add('listening');
+        voiceInputBtn.title = '停止聆聽';
+      };
+
+      recognition.onend = () => {
+        voiceInputBtn.classList.remove('listening');
+        voiceInputBtn.title = '使用語音輸入';
+      };
+
+      recognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = 0; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        messageInput.value = transcript;
+
+        if (event.results[event.results.length - 1].isFinal) {
+          sendMessage();
+        }
+      };
+
+      recognition.onerror = (event) => {
+        if (event.error === 'not-allowed') {
+          alert('麥克風權限已被拒絕。請在您的瀏覽器設定中允許麥克風存取以使用語音輸入。');
+        } else {
+          console.error('Speech recognition error:', event.error);
+        }
+      };
+    } else {
+      if(voiceInputBtn) {
+        voiceInputBtn.disabled = true;
+        voiceInputBtn.title = '此瀏覽器不支援語音輸入';
+      }
+    }
+
+    // --- Message Sending Logic ---
+    const sendMessage = async () => {
+      const message = messageInput.value.trim();
+      if (!message) return;
+
+      addMessageToUI('user', message);
+      messageInput.value = '';
+      messageInput.disabled = true;
+      sendBtn.disabled = true;
+      loadingIndicator.style.display = 'block';
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+
+      try {
+        const response = await fetch('<%= generate_response_path %>', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': getCsrfToken()
+          },
+          body: JSON.stringify({ message: message })
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to get response from server.');
+        }
+        
+        const patientResponse = data.patient_response;
+        addMessageToUI('patient', patientResponse);
+
+        await fetch('<%= send_message_path %>', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': getCsrfToken()
+          },
+          body: JSON.stringify({ 
+            message: message,
+            patient_response: patientResponse
+          })
+        });
+
+      } catch (error) {
+        console.error('Error during chat submission:', error);
+        addMessageToUI('patient', `錯誤: ${error.message}`, true);
+      } finally {
+        loadingIndicator.style.display = 'none';
+        messageInput.disabled = false;
+        sendBtn.disabled = false;
+        messageInput.focus();
+      }
+    };
+
+    sendBtn.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    function addMessageToUI(role, content, isError = false) {
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${role}`;
+      
+      const avatarInitial = role === 'user' ? '<%= @username[0].upcase %>' : '病';
+      const avatarHtml = `<div class="avatar">${avatarInitial}</div>`;
+      let contentHtml = `<div class="message-content">${escapeHtml(content)}</div>`;
+
+      if (isError) {
+        contentHtml = `<div class="message-content" style="color: #ef4444; border-color: #fecaca;">${escapeHtml(content)}</div>`;
+      }
+
+      if (role === 'user') {
+        messageDiv.innerHTML = contentHtml + avatarHtml;
+      } else {
+        messageDiv.innerHTML = avatarHtml + contentHtml;
+      }
+      
+      chatMessages.appendChild(messageDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    // --- Modal Handling ---
+    if(diagnoseBtn) {
+      diagnoseBtn.addEventListener('click', () => {
+        diagnosisModal.classList.remove('hidden');
+      });
+    }
+
+    if(closeModalBtn) {
+      closeModalBtn.addEventListener('click', () => {
+        diagnosisModal.classList.add('hidden');
+      });
+    }
+    
+    if(diagnosisModal) {
+      diagnosisModal.addEventListener('click', (e) => {
+        if (e.target === diagnosisModal) {
+          diagnosisModal.classList.add('hidden');
+        }
+      });
+    }
+
+    if(diagnosisForm) {
+      diagnosisForm.addEventListener('submit', (e) => {
+        const submitButton = diagnosisForm.querySelector('button[type="submit"]');
+        submitButton.disabled = true;
+        submitButton.textContent = '提交中...';
+      });
+    }
+
+    if(backBtn) {
+      backBtn.addEventListener('click', () => {
+        if (confirm('您確定要結束問診嗎？目前的進度將會遺失。')) {
+          window.location.href = '<%= entry_page_path %>';
+        }
+      });
+    }
+
+    function getCsrfToken() {
+      return document.querySelector('meta[name="csrf-token"]').content;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    startTimer();
+  }
+
+  // Run on both turbo:load and DOMContentLoaded for robustness
+  document.addEventListener('turbo:load', setupChatPage);
+  document.addEventListener('DOMContentLoaded', setupChatPage);
+</script>
