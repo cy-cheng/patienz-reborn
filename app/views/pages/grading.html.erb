@@ -18,6 +18,10 @@
   <div class="grading-content">
     <div class="tabs">
       <button class="tab-button active" data-tab="feedback">綜合回饋</button>
+      <% rag_available = @rag_grouped_items.present? || @rag_error.present? %>
+      <% if rag_available %>
+        <button class="tab-button" data-tab="rag">RAG 評分表</button>
+      <% end %>
       <button class="tab-button" data-tab="diagnosis">你的診斷</button>
       <button class="tab-button" data-tab="transcript">完整對話紀錄</button>
     </div>
@@ -105,6 +109,74 @@
 
         </div>
       </div>
+
+      <% if rag_available %>
+        <div id="rag" class="tab-content">
+          <div class="rag-panel">
+            <div class="rag-header">
+              <div>
+                <h3>RAG 客製化評分表</h3>
+                <p class="rag-subtitle">使用 Google File Search 生成的檢核表，依項目類別整理</p>
+              </div>
+              <% if @rag_grading_scheme&.is_a?(Hash) %>
+                <div class="rag-meta">
+                  <div><strong>疾病:</strong> <%= @rag_grading_scheme['disease'] || '—' %></div>
+                  <div><strong>主訴:</strong> <%= @rag_grading_scheme['chief_complaint'] || '—' %></div>
+                </div>
+              <% end %>
+            </div>
+
+            <% if @rag_error.present? %>
+              <div class="rag-alert">⚠️ <%= @rag_error %></div>
+            <% end %>
+
+            <% if @rag_grouped_items.present? %>
+              <% @rag_grouped_items.each do |category, items| %>
+                <div class="rag-card">
+                  <div class="rag-card-header">
+                    <h4><%= category.titleize %></h4>
+                    <span class="rag-chip">共 <%= items.size %> 項</span>
+                  </div>
+                  <div class="rag-table-wrapper">
+                    <table class="rag-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>項目</th>
+                          <th>指引</th>
+                          <th>得分</th>
+                          <th>配分</th>
+                          <th>必要</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <% items.each do |item| %>
+                          <tr>
+                            <td><%= item[:id] %></td>
+                            <td><%= item[:name] %></td>
+                            <td class="rag-guidance"><%= item[:guidance] %></td>
+                            <td class="rag-score">-</td>
+                            <td class="rag-score"><%= item[:full_score] %></td>
+                            <td>
+                              <% if item[:required] %>
+                                <span class="rag-pill required">必答</span>
+                              <% else %>
+                                <span class="rag-pill optional">選答</span>
+                              <% end %>
+                            </td>
+                          </tr>
+                        <% end %>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              <% end %>
+            <% elsif @rag_error.blank? %>
+              <p class="rag-empty">尚未取得 RAG 評分表資料。</p>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
 
     <% else %>
       <div class="tab-content active">
@@ -272,6 +344,27 @@
 
   .diagnosis-box { background: #f3f4f6; padding: 1.5rem; border-radius: 0.5rem; }
   .diagnosis-box p { margin: 0; font-size: 1rem; color: #1f2937; line-height: 1.6; }
+
+  /* RAG grading scheme */
+  .rag-panel { background: white; padding: 1.5rem; border-radius: 0.75rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06); display: flex; flex-direction: column; gap: 1rem; }
+  .rag-header { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; align-items: center; }
+  .rag-subtitle { margin: 0.25rem 0 0; color: #6b7280; font-size: 0.9rem; }
+  .rag-meta { display: flex; gap: 1rem; color: #374151; font-size: 0.95rem; }
+  .rag-alert { padding: 0.75rem 1rem; border-radius: 0.5rem; background: #fef3c7; border: 1px solid #fcd34d; color: #92400e; }
+  .rag-card { border: 1px solid #e5e7eb; border-radius: 0.75rem; overflow: hidden; background: #f9fafb; }
+  .rag-card-header { display: flex; justify-content: space-between; align-items: center; padding: 0.9rem 1rem; background: #f3f4f6; border-bottom: 1px solid #e5e7eb; }
+  .rag-card-header h4 { margin: 0; font-size: 1rem; }
+  .rag-chip { background: #eef2ff; color: #4338ca; padding: 0.25rem 0.6rem; border-radius: 999px; font-size: 0.85rem; }
+  .rag-table-wrapper { overflow-x: auto; }
+  .rag-table { width: 100%; border-collapse: collapse; background: white; }
+  .rag-table th, .rag-table td { padding: 0.75rem 0.75rem; border-bottom: 1px solid #e5e7eb; text-align: left; vertical-align: top; }
+  .rag-table th { background: #f9fafb; font-weight: 600; color: #374151; }
+  .rag-table .rag-guidance { color: #4b5563; font-size: 0.95rem; }
+  .rag-table .rag-score { font-weight: 600; color: #111827; }
+  .rag-pill { padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.85rem; font-weight: 600; }
+  .rag-pill.required { background: #fee2e2; color: #b91c1c; }
+  .rag-pill.optional { background: #ecfeff; color: #0f766e; }
+  .rag-empty { color: #6b7280; }
 
   .grading-actions {
     padding: 2rem;

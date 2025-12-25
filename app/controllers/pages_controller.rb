@@ -2,6 +2,7 @@ require 'net/http'
 require 'json'
 require_relative '../services/prompt_manager'
 require_relative '../services/grading_service'
+require_relative '../services/grading_scheme_designer'
 
 class PagesController < ApplicationController
   before_action :check_session, only: [:chat, :generate_response, :submit_diagnosis, :grading, :back_to_chat]
@@ -133,6 +134,22 @@ class PagesController < ApplicationController
       differential_diagnosis: @differential_diagnosis,
       treatment_plan: @treatment_plan
     ).perform
+
+    # Generate RAG-based grading scheme when File Search store is configured
+    patient_background = PromptManager.patient_prompt(@patient_id)
+    case_details = <<~TEXT
+      患者基本資料：#{@patient_id}
+      臨床摘要：#{patient_background.presence || '未提供個案設定'}
+      學員診斷：#{@diagnosis}
+      鑑別診斷：#{@differential_diagnosis}
+      處置計畫：#{@treatment_plan}
+    TEXT
+
+    designer = GradingSchemeDesigner.new
+    scheme_result = designer.generate(patient_case_details: case_details)
+    @rag_grading_scheme = scheme_result.raw
+    @rag_grouped_items = scheme_result.grouped_items
+    @rag_error = scheme_result.error
   end
 
   def back_to_chat
